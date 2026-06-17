@@ -71,3 +71,18 @@ M2, M3, M4 must follow this exact output format for their detectors:
 - `POST /api/detect/layering-chain` -> requires JWT. Input `case_id`.
 - `POST /api/detect/layering-severity` -> requires JWT. Input `case_id`, `chain`.
 
+### New M3 Detectors & AI
+- `POST /api/detect/large-transaction` -> requires JWT. Input `case_id`.
+- `POST /api/detect/dormant-revival` -> requires JWT. Input `case_id`.
+- `POST /api/detect/beneficiary-burst` -> requires JWT. Input `case_id`.
+- `POST /api/detect/high-risk-time` -> requires JWT. Input `case_id`.
+- `POST /api/detect/structuring` -> requires JWT. Input `case_id`.
+- `POST /api/detect/evidence-confidence` -> requires JWT. Input `case_id`.
+- `POST /api/ai/chat` -> requires JWT. Input `question`, `case_id`, `conversation_history`.
+- `POST /api/ai/explain` -> requires JWT. Input `txn_id`, `case_id`.
+- `POST /api/ai/legitimate-check` -> requires JWT. Input `txn_id`, `case_id`.
+- `POST /api/ai/identify-patterns` -> requires JWT. Input `case_id`.
+- `GET /api/ai/case-severity/<case_id>` -> requires JWT.
+- `GET /api/intelligence/escalation/<case_id>` -> requires JWT.
+- `GET /api/intelligence/submission-recommendation/<case_id>` -> requires JWT.
+

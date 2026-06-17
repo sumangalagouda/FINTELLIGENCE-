@@ -32,6 +32,8 @@ def create_app(config_name='default'):
     from app.routes.cases import cases_bp
     from app.routes.health import health_bp
     from app.routes.graph import graph_bp
+    from app.routes.detectors import detectors_bp
+    from app.routes.ai import ai_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(upload_bp, url_prefix='/api/upload')
@@ -39,5 +41,7 @@ def create_app(config_name='default'):
     app.register_blueprint(cases_bp, url_prefix='/api/cases')
     app.register_blueprint(health_bp, url_prefix='/api/health')
     app.register_blueprint(graph_bp)
+    app.register_blueprint(detectors_bp)
+    app.register_blueprint(ai_bp)
     
     return app

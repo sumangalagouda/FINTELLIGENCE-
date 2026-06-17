@@ -1,1 +1,1 @@
-# Detectors package
+# Detectors Init

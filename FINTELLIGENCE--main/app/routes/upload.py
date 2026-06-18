@@ -128,7 +128,7 @@ def upload_file():
             # run_silent_analysis.delay(statement.id, case_id)
             
             # Running synchronously for now without Celery
-            from celery_worker import run_silent_analysis
+            from app.intelligence.silent_engine import run_silent_analysis
             run_silent_analysis(statement.id, case_id)
             
             return jsonify({

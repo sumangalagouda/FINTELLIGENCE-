@@ -3,7 +3,11 @@ from groq import Groq
 
 client = None
 if os.environ.get("GROQ_API_KEY"):
-    client = Groq(api_key=os.environ["GROQ_API_KEY"])
+    try:
+        client = Groq(api_key=os.environ["GROQ_API_KEY"])
+    except Exception as e:
+        print(f"Failed to initialize Groq client: {e}")
+        client = None
 
 def call_groq(system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
     if not os.environ.get("GROQ_API_KEY") or not client:

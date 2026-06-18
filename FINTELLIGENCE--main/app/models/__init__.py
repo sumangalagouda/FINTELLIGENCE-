@@ -8,3 +8,5 @@ from .verification import Verification
 from .audit_trail import AuditTrail
 from .supervisor_approval import SupervisorApproval
 from .case_graph import CaseGraph
+from .investigator_note import InvestigatorNote
+from .evidence_item import EvidenceItem

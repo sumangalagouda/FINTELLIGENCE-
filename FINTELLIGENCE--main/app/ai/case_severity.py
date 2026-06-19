@@ -36,25 +36,21 @@ def get_case_severity(case_id: str) -> dict:
         f"Assess the severity."
     )
     
-    response_text = call_groq(system_prompt, user_prompt, max_tokens=1000)
+    try:
+        response_text = call_groq(system_prompt, user_prompt, max_tokens=1000)
+    except Exception:
+        return {
+            "severity_score": evidence.get('overall_confidence', 0),
+            "risk_level": "HIGH" if evidence.get('overall_confidence', 0) > 75 else "MEDIUM" if evidence.get('overall_confidence', 0) > 40 else "LOW",
+            "reasons": ["AI severity assessment unavailable; using evidence confidence fallback."],
+            "recommended_action": "Review manually with detector and transaction details."
+        }
     
     try:
         clean_json = response_text.replace("```json", "").replace("```", "").strip()
         data = json.loads(clean_json)
         return data
     except Exception:
-        if "[MOCK RESPONSE]" in response_text:
-            return {
-                "severity_score": 84,
-                "risk_level": "HIGH",
-                "reasons": [
-                    "Multiple high-risk patterns detected",
-                    "Significant transaction volume involved",
-                    "[MOCK] Add API Key for real assessment"
-                ],
-                "recommended_action": "Immediate escalation to AML team and Supervisor review required"
-            }
-        
         # Fallback heuristic
         score = evidence.get('overall_confidence', 0)
         return {

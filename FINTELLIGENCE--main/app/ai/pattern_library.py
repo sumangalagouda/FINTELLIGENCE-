@@ -49,20 +49,22 @@ def identify_patterns(case_id: str) -> list:
         
         user_prompt = f"Pattern: {pattern_name}. Describe it in the context of Indian AML, and recommend an action."
         
-        response_text = call_groq(system_prompt, user_prompt, max_tokens=500)
-        
+        try:
+            response_text = call_groq(system_prompt, user_prompt, max_tokens=500)
+        except Exception:
+            response_text = None
+
         desc = "Suspicious money movement pattern."
         action = "Investigate source and destination of funds."
         
-        try:
-            clean_json = response_text.replace("```json", "").replace("```", "").strip()
-            data = json.loads(clean_json)
-            desc = data.get('description', desc)
-            action = data.get('recommended_action', action)
-        except Exception:
-            if "[MOCK RESPONSE]" in response_text:
-                desc = f"[MOCK] Description for {pattern_name}."
-                action = f"[MOCK] Recommended action for {pattern_name}."
+        if response_text:
+            try:
+                clean_json = response_text.replace("```json", "").replace("```", "").strip()
+                data = json.loads(clean_json)
+                desc = data.get('description', desc)
+                action = data.get('recommended_action', action)
+            except Exception:
+                pass
         
         patterns.append({
             "pattern_name": pattern_name,

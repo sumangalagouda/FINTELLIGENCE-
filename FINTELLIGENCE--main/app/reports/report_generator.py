@@ -70,12 +70,17 @@ def generate_pdf_report(case_id):
     story.append(Paragraph(f"<b>Status:</b> {case.status.upper()}", normal_style))
     story.append(PageBreak())
 
-    # 2. Executive Summary (Mocked via Groq)
+    # 2. Executive Summary (AI-generated if available)
     story.append(Paragraph("Executive Summary", heading_style))
     try:
-        summary_text = query_groq(f"Provide a 2-paragraph executive summary for case {case_id} involving money laundering.")
+        summary_text = query_groq(
+            f"Provide a 2-paragraph executive summary for case {case_id} involving money laundering."
+        )
     except Exception:
-        summary_text = "Executive summary generation failed or is using mock fallback."
+        summary_text = (
+            "Executive summary unavailable because AI services are not configured or failed to generate. "
+            "The rest of this report still contains case details and detector insights."
+        )
     story.append(Paragraph(summary_text, normal_style))
     
     # 3. Risk Assessment

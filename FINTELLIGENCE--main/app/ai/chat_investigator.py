@@ -84,7 +84,12 @@ def ask_investigator(question: str, case_id: str, conversation_history: list = N
     )
     
     # 4. Send to Groq
-    answer = call_groq(system_prompt, user_prompt, max_tokens=1500)
+    try:
+        answer = call_groq(system_prompt, user_prompt, max_tokens=1500)
+    except RuntimeError as err:
+        answer = str(err)
+    except Exception:
+        answer = "AI analysis is currently unavailable. Please try again later."
     
     # 5. Return response
     confidence = "high"

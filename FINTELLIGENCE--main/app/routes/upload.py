@@ -54,16 +54,28 @@ def upload_file():
         db.session.commit()
         
         try:
-            # Detect format and call parser
-            if ext == 'pdf':
-                # Logic could be added to check if it's scanned and route to OCR instead
-                bank_detected, raw_txns = parse_pdf(filepath)
-            elif ext in ['csv', 'xls', 'xlsx']:
-                bank_detected, raw_txns = parse_csv_excel(filepath)
-            else:
-                bank_detected, raw_txns = parse_image_or_scanned_pdf(filepath)
+            # 1 & 2: Extract details and remove failed transactions using statement_extractor.py
+            from app.parsers.statement_extractor import extract_statement
+            
+            extracted_data = extract_statement(filepath)
+            bank_detected = extracted_data.get('account', {}).get('bank_name', 'UNKNOWN')
+            extracted_txns = extracted_data.get('transactions', [])
+            
+            # 3: Format the cleaned transactions so they can pass through the normalizer parsing logic
+            raw_txns = []
+            for t in extracted_txns:
+                raw_txns.append({
+                    "raw_text": str(t.get('description', '')),
+                    "parsed_data": {
+                        "Date": t.get('date'),
+                        "Description": str(t.get('description', '')),
+                        "Credit": t.get('credit'),
+                        "Debit": t.get('debit'),
+                        "Balance": t.get('balance')
+                    }
+                })
                 
-            # Run normalizer
+            # Run normalizer (which extracts sender/receiver accounts)
             normalized_txns = process_and_normalize(raw_txns, statement.id, case_id)
             
             # Save to PostgreSQL

@@ -3,7 +3,7 @@ import os
 class Config:
     """Base configuration."""
     SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///fintelligence_dev.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,

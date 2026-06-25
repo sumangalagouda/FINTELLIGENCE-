@@ -104,7 +104,8 @@ def build_multi_statement_graph(case_id: str) -> nx.MultiDiGraph:
     Build graph from all transactions in a case.
     """
     transactions = Transaction.query.filter_by(
-        case_id=case_id
+        case_id=case_id,
+        is_failed=False
     ).all()
 
     return build_graph(transactions)

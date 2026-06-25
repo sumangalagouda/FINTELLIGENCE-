@@ -148,6 +148,9 @@ def process_and_normalize(raw_transactions, statement_id, case_id):
             clean_desc, txn_type
         )
 
+        if parsed_date is None:
+            continue
+
         canonical_txn = {
             "txn_id": str(uuid.uuid4()),
             "statement_id": statement_id,
@@ -159,7 +162,9 @@ def process_and_normalize(raw_transactions, statement_id, case_id):
             "receiver_account": receiver_account,
             "description": clean_desc,
             "balance_after": balance_after,
-            "raw_text": raw_txn.get("raw_text", "")
+            "raw_text": raw_txn.get("raw_text", ""),
+            "is_failed": parsed.get("is_failed", False),
+            "failure_reason": parsed.get("failure_reason")
         }
 
         normalized_txns.append(canonical_txn)

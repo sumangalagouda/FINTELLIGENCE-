@@ -14,7 +14,7 @@ def generate_dossier(case_id):
     if not case:
         return jsonify({"error": "Case not found"}), 404
         
-    transactions = Transaction.query.filter_by(case_id=case_id).all()
+    transactions = Transaction.query.filter_by(case_id=case_id, is_failed=False).all()
     
     if authority == 'auditor':
         # Generate Excel

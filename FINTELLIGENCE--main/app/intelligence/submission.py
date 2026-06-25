@@ -1,5 +1,5 @@
 import json
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.ai.pattern_library import identify_patterns
 from app.models.transaction import Transaction
 
@@ -7,7 +7,7 @@ def recommend_submission(case_id: str) -> dict:
     patterns_data = identify_patterns(case_id)
     pattern_names = [p['pattern_name'] for p in patterns_data]
     
-    txns = Transaction.query.filter_by(case_id=case_id).all()
+    txns = Transaction.query.filter_by(case_id=case_id, is_failed=False).all()
     total_amount = sum(t.amount for t in txns if t.amount)
     
     system_prompt = (
@@ -26,7 +26,7 @@ def recommend_submission(case_id: str) -> dict:
     )
     
     try:
-        response_text = call_groq(system_prompt, user_prompt, max_tokens=1500)
+        response_text = call_ollama(system_prompt, user_prompt, max_tokens=1500)
     except Exception:
         return {
             "primary_authority": "Financial Intelligence Unit (FIU)",

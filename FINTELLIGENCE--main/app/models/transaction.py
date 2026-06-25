@@ -16,6 +16,8 @@ class Transaction(db.Model):
     description = db.Column(db.String(500), nullable=True)
     balance_after = db.Column(db.Float, nullable=True)
     raw_text = db.Column(db.Text, nullable=True)
+    is_failed = db.Column(db.Boolean, default=False)
+    failure_reason = db.Column(db.String(100), nullable=True)
     is_flagged = db.Column(db.Boolean, default=False)
     risk_score = db.Column(db.Float, default=0.0)
     risk_level = db.Column(db.String(50), default='low') # low/medium/high/critical

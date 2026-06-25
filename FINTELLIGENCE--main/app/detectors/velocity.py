@@ -4,7 +4,7 @@ from app.models.transaction import Transaction
 def detect_velocity(case_id: str):
     transactions = (
         Transaction.query
-        .filter_by(case_id=case_id)
+        .filter_by(case_id=case_id, is_failed=False)
         .order_by(Transaction.date)
         .all()
     )

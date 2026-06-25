@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import DetectorCard from '../shared/DetectorCard';
+import CaseList from '../components/CaseList';
 
-export default function Fraud({ detectors, runDetectors, loading, selectedCaseId }) {
+export default function Fraud({ detectors, runDetectors, loading, cases, selectedCaseId, setSelectedCaseId }) {
   const triggered = detectors.filter((item) => item.triggered || item.score > 0);
   const passed = detectors.filter((item) => !triggered.includes(item));
 

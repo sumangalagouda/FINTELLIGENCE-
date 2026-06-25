@@ -2,7 +2,7 @@ import pandas as pd
 from app.models.transaction import Transaction
 
 def detect_beneficiary_burst(case_id: str):
-    transactions = Transaction.query.filter_by(case_id=case_id).order_by(Transaction.date).all()
+    transactions = Transaction.query.filter_by(case_id=case_id, is_failed=False).order_by(Transaction.date).all()
     if not transactions:
         return []
 

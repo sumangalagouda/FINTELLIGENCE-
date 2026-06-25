@@ -1,5 +1,5 @@
 import json
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.models.transaction import Transaction
 
 def check_legitimate_explanation(txn_id: str, case_id: str) -> dict:
@@ -31,7 +31,7 @@ def check_legitimate_explanation(txn_id: str, case_id: str) -> dict:
     )
 
     try:
-        response_text = call_groq(system_prompt, user_prompt, max_tokens=1000)
+        response_text = call_ollama(system_prompt, user_prompt, max_tokens=1000)
     except Exception:
         return {
             "has_legitimate_explanation": False,

@@ -64,7 +64,7 @@ def update_case_suspicion_score(case_id, results=None):
         
     # Total amount flagged
     flagged_amount = 0.0
-    txns = Transaction.query.filter_by(case_id=case_id).join(DetectionResult, Transaction.id == DetectionResult.txn_id).all()
+    txns = Transaction.query.filter_by(case_id=case_id, is_failed=False).join(DetectionResult, Transaction.id == DetectionResult.txn_id).all()
     # Wait, the transactions_involved is a JSON array in DetectionResult, not a simple join.
     # We'll fetch all unique transaction ids involved
     txn_ids = set()

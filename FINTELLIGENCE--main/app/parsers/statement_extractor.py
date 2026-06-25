@@ -648,13 +648,19 @@ def extract_statement(file_path: str) -> dict:
 
                 df = _dataframe_from_pdf(file_path)
                 
-                # FIX: Fallback to Bank-Specific Regex if table extraction failed
-                if df.empty or len(df) == 0:
-                    bank_name = account.get('bank_name', 'UNKNOWN')
-                    df = _regex_parse_pdf(file_path, bank_name)
-                    
+                # Try parsing with table dataframe
                 if not df.empty:
                     transactions = _rows_from_dataframe(df)
+                    
+                # FIX: Fallback to Bank-Specific Regex if table extraction failed to yield transactions
+                valid_txns = [t for t in transactions if t.get('date') or t.get('description')]
+                if not valid_txns:
+                    temp_ifsc = _extract_ifsc_from_text(raw_text)
+                    temp_bank = _bank_name_from_ifsc(temp_ifsc) if temp_ifsc else 'UNKNOWN'
+                    
+                    df_fallback = _regex_parse_pdf(file_path, temp_bank)
+                    if not df_fallback.empty:
+                        transactions = _rows_from_dataframe(df_fallback)
 
         else:
             # Unknown extension: try CSV

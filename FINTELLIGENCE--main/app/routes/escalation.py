@@ -1,10 +1,13 @@
-from flask import Blueprint, jsonify, request
+import os
+from flask import Blueprint, jsonify, request, current_app
+from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.case import Case
 from app.models.case_escalation import CaseEscalation
 from app.models.user import User
+from app.models.evidence_item import EvidenceItem
 from app.intelligence.escalation import determine_escalation
 
 
@@ -16,10 +19,15 @@ escalation_bp = Blueprint('escalation', __name__, url_prefix='/api')
 def escalate_case(case_id: str):
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or user.role != 'investigator':
-        return jsonify({"error": "Unauthorized"}), 403
+    if not user:
+        return jsonify({"error": "User not found"}), 403
+    if user.role not in ['investigator', 'investigating_officer', 'admin', 'aml_analyst', 'cyber_crime_investigator', 'compliance_officer']:
+        return jsonify({"error": f"Unauthorized. Your role is '{user.role}', but you do not have permission to escalate."}), 403
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form
 
-    data = request.get_json(silent=True) or {}
     reason = data.get('reason')
 
     # Only allow if case is visible/owned by investigator
@@ -29,6 +37,34 @@ def escalate_case(case_id: str):
 
     # Optional helper: auto recommendation (not persisted unless we want to)
     _ = determine_escalation(case_id)
+
+    sig_pwd = data.get('signature_password')
+    if not sig_pwd:
+        return jsonify({"error": "Digital signature password required to escalate case"}), 400
+    
+    from werkzeug.security import check_password_hash
+    if not check_password_hash(user.password_hash, sig_pwd):
+        return jsonify({"error": "Invalid digital signature"}), 403
+
+    # Handle file upload if present
+    if 'evidence_file' in request.files:
+        file = request.files['evidence_file']
+        if file and file.filename:
+            filename = secure_filename(file.filename)
+            upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+            os.makedirs(upload_folder, exist_ok=True)
+            file_path = os.path.join(upload_folder, filename)
+            file.save(file_path)
+            
+            # Save file as evidence
+            evidence = EvidenceItem(
+                case_id=case_id,
+                item_type='escalation_document',
+                file_path=file_path,
+                uploaded_by=user_id,
+                note_text=f"ESCALATION DOCUMENT\n\nUploaded by: {user.name}"
+            )
+            db.session.add(evidence)
 
     esc = CaseEscalation(
         case_id=case_id,

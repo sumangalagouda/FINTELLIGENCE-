@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { UploadCloud, FileText } from 'lucide-react';
 
-export default function Upload({ api, refreshCases, selectedCaseId, setSelectedCaseId, setNotice }) {
+export default function Upload({ api, refreshCases, selectedCaseId, setSelectedCaseId, setNotice, setActiveView, setCaseViewMode }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
-  const [caseTitle, setCaseTitle] = useState('Statement investigation');
   const [busy, setBusy] = useState(false);
+  const [popupMsg, setPopupMsg] = useState('');
+  const [uploadedCaseId, setUploadedCaseId] = useState(null);
 
   const upload = async () => {
     if (!file) {
@@ -15,21 +16,16 @@ export default function Upload({ api, refreshCases, selectedCaseId, setSelectedC
     setBusy(true);
     setNotice('');
     try {
-      let caseId = selectedCaseId;
-      if (!caseId) {
-        const created = await api('/cases/', {
-          method: 'POST',
-          body: JSON.stringify({ title: caseTitle, description: 'Uploaded from forensic intake workspace.', severity: 'medium' }),
-        });
-        caseId = created.id;
-        setSelectedCaseId(caseId);
-      }
       const form = new FormData();
-      form.append('case_id', caseId);
       form.append('file', file);
+      // Backend automatically generates a case if case_id is absent
       const result = await api('/upload/', { method: 'POST', body: form });
+      setSelectedCaseId(result.case_id);
       await refreshCases();
-      setNotice(`Statement analyzed: ${result.transactions_count} transactions from ${result.bank_detected || 'uploaded file'}.`);
+      setUploadedCaseId(result.case_id);
+      setPopupMsg(`Analyzed the statement succesfully and case is being created with ${result.case_id}`);
+      setTimeout(() => setPopupMsg(''), 5000);
+      setNotice('');
     } catch (error) {
       setNotice(error.message);
     } finally {
@@ -40,10 +36,6 @@ export default function Upload({ api, refreshCases, selectedCaseId, setSelectedC
   return (
     <section className="upload-view">
       <p className="subcopy">PDF, CSV or Excel. We normalize into the canonical schema and run the detector suite automatically.</p>
-      <label className="case-title">
-        <span>Case title for new uploads</span>
-        <input value={caseTitle} onChange={(event) => setCaseTitle(event.target.value)} />
-      </label>
       <button className="dropzone" type="button" onClick={() => inputRef.current?.click()}>
         <UploadCloud size={38} />
         <strong>{file ? file.name : 'Drop a statement here, or click to browse'}</strong>
@@ -60,10 +52,34 @@ export default function Upload({ api, refreshCases, selectedCaseId, setSelectedC
         <button className="primary-button" onClick={upload} disabled={busy} type="button">
           {busy ? 'Analyzing statement' : 'Analyze statement'}
         </button>
+        {uploadedCaseId && (
+          <button 
+            className="secondary-button" 
+            onClick={() => {
+              setSelectedCaseId(uploadedCaseId);
+              setCaseViewMode('detail');
+              setActiveView('cases');
+            }} 
+            type="button"
+            style={{ marginLeft: '12px' }}
+          >
+            View Case Summary
+          </button>
+        )}
         <span><FileText size={15} /> PDF</span>
         <span><FileText size={15} /> Spreadsheet</span>
         <span><FileText size={15} /> Image / scan</span>
       </div>
+      {popupMsg && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', border: '1px solid var(--success)', color: 'var(--success)', padding: '32px 48px', borderRadius: '12px', boxShadow: '0 24px 48px rgba(0,0,0,0.1)', fontWeight: '600', fontSize: '18px', textAlign: 'center', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            {popupMsg}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

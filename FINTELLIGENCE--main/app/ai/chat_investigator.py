@@ -1,5 +1,5 @@
 import spacy
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.models.transaction import Transaction
 
 # Load NLP model safely
@@ -22,7 +22,7 @@ def ask_investigator(question: str, case_id: str, conversation_history: list = N
     keywords = set(extracted_entities + accounts)
     
     # 2. Fetch relevant transactions (basic keyword search)
-    query = Transaction.query.filter_by(case_id=case_id).order_by(Transaction.date)
+    query = Transaction.query.filter_by(case_id=case_id, is_failed=False).order_by(Transaction.date)
     
     # If the user asks about specific threshold
     amounts = re.findall(r'\b\d{4,}\b', question) # looking for >1000 amounts roughly
@@ -85,7 +85,7 @@ def ask_investigator(question: str, case_id: str, conversation_history: list = N
     
     # 4. Send to Groq
     try:
-        answer = call_groq(system_prompt, user_prompt, max_tokens=1500)
+        answer = call_ollama(system_prompt, user_prompt, max_tokens=1500)
     except RuntimeError as err:
         answer = str(err)
     except Exception:

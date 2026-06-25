@@ -1,5 +1,5 @@
 import json
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.models.detection_result import DetectionResult
 from app.detectors.evidence_confidence import calculate_evidence_confidence
 
@@ -50,7 +50,7 @@ def identify_patterns(case_id: str) -> list:
         user_prompt = f"Pattern: {pattern_name}. Describe it in the context of Indian AML, and recommend an action."
         
         try:
-            response_text = call_groq(system_prompt, user_prompt, max_tokens=500)
+            response_text = call_ollama(system_prompt, user_prompt, max_tokens=500)
         except Exception:
             response_text = None
 

@@ -1,4 +1,4 @@
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.models.transaction import Transaction
 from app.models.detection_result import DetectionResult
 from sqlalchemy import or_
@@ -40,6 +40,6 @@ def generate_explanation(txn_id: str, case_id: str) -> str:
     )
 
     try:
-        return call_groq(system_prompt, user_prompt, max_tokens=800)
+        return call_ollama(system_prompt, user_prompt, max_tokens=800)
     except Exception:
         return "Explanation unavailable because AI services are not configured."

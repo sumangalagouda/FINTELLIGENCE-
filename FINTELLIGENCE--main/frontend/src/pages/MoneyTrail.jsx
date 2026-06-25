@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import FundFlowView from '../components/FundFlowView';
+import CaseList from '../components/CaseList';
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -9,7 +10,8 @@ const formatDate = (value) => {
 
 const formatMoney = (value) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value || 0));
 
-export default function MoneyTrail({ graph, transactions, selectedCase, caseDetail }) {
+export default function MoneyTrail({ graph, transactions, selectedCase, caseDetail, cases, selectedCaseId, setSelectedCaseId }) {
+  const [pageViewMode, setPageViewMode] = useState('list');
   const summary = useMemo(() => {
     const dates = transactions
       .map((txn) => txn.date)

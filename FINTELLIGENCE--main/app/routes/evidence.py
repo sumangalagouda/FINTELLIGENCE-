@@ -93,8 +93,17 @@ def delete_evidence(item_id):
 @jwt_required()
 def download_evidence(item_id):
     from flask import send_file
+    import os
     item = EvidenceItem.query.get(item_id)
-    if not item or not item.file_path or not os.path.exists(item.file_path):
+    if not item or not item.file_path:
         return jsonify({"error": "File not found"}), 404
         
-    return send_file(item.file_path, as_attachment=True)
+    # Resolve relative paths against the project root (CWD) where they were saved
+    file_path = item.file_path
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
+        
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found on disk"}), 404
+        
+    return send_file(file_path, as_attachment=True)

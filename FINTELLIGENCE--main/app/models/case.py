@@ -6,6 +6,7 @@ class Case(db.Model):
     __tablename__ = 'cases'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    display_id = db.Column(db.Integer, server_default=db.FetchedValue(), unique=True)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(50), default='open') # open/under_review/escalated/closed/flagged_for_audit

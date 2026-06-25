@@ -10,7 +10,7 @@ MULTIPLIER_THRESHOLD = 3.0
 def detect_large_transaction(case_id: str):
     transactions = (
         Transaction.query
-        .filter_by(case_id=case_id)
+        .filter_by(case_id=case_id, is_failed=False)
         .order_by(Transaction.date)
         .all()
     )

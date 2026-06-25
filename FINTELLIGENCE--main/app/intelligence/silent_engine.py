@@ -20,34 +20,41 @@ from app.intelligence.suspicion_score import update_case_suspicion_score
 intelligence_bp = Blueprint('intelligence', __name__, url_prefix='/api/intelligence')
 
 def save_detection_result(result, case_id, statement_id):
+    from app.models.transaction import Transaction
     if not result:
         return
         
-    if isinstance(result, list):
-        for r in result:
-            dr = DetectionResult(
-                case_id=case_id,
-                statement_id=statement_id,
-                detector_name=r.get("detector"),
-                triggered=r.get("triggered", False),
-                score=r.get("score", 0),
-                reason=r.get("reason"),
-                transactions_involved=r.get("transactions_involved", []),
-                severity=r.get("severity", "none")
-            )
-            db.session.add(dr)
-    else:
+    def process_result(r):
         dr = DetectionResult(
             case_id=case_id,
             statement_id=statement_id,
-            detector_name=result.get("detector"),
-            triggered=result.get("triggered", False),
-            score=result.get("score", 0),
-            reason=result.get("reason"),
-            transactions_involved=result.get("transactions_involved", []),
-            severity=result.get("severity", "none")
+            detector_name=r.get("detector"),
+            triggered=r.get("triggered", False),
+            score=r.get("score", 0),
+            reason=r.get("reason"),
+            transactions_involved=r.get("transactions_involved", []),
+            severity=r.get("severity", "none")
         )
         db.session.add(dr)
+        
+        # Update associated transactions
+        txns_involved = r.get("transactions_involved", [])
+        if txns_involved:
+            for txn_id in txns_involved:
+                txn = Transaction.query.get(txn_id)
+                if txn:
+                    txn.is_flagged = True
+                    # Only upgrade risk_level/score if this detector's score is higher
+                    if float(r.get("score", 0)) > float(txn.risk_score or 0):
+                        txn.risk_score = float(r.get("score", 0))
+                        txn.risk_level = r.get("severity", "low")
+
+    if isinstance(result, list):
+        for r in result:
+            process_result(r)
+    else:
+        process_result(result)
+        
     db.session.commit()
 
 def run_silent_analysis(statement_id, case_id):

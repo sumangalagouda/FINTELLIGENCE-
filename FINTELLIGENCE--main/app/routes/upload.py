@@ -32,14 +32,36 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
         
     case_id = request.form.get('case_id')
+    display_id = None
     if not case_id:
-        return jsonify({"error": "case_id is required"}), 400
+        new_case = Case(
+            title=f"Investigation: {file.filename}",
+            created_by=current_user,
+            assigned_to=current_user
+        )
+        db.session.add(new_case)
+        db.session.commit()
+        case_id = new_case.id
+        display_id = new_case.display_id
+    else:
+        existing_case = Case.query.get(case_id)
+        if existing_case:
+            display_id = existing_case.display_id
         
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[1].lower()
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], f"{uuid.uuid4()}_{filename}")
-        os.makedirs(current_app.config['UPLOAD_FOLDER'], exist_ok=True)
+        ext = secure_filename(file.filename).rsplit('.', 1)[1].lower()
+        count = Statement.query.filter_by(case_id=case_id).count() + 1
+        
+        # Use display_id for the filename if available
+        display_str = f"case{display_id}" if display_id else case_id
+        
+        if count == 1:
+            filename = f"bank_statement_{display_str}.{ext}"
+        else:
+            filename = f"bank_statement_{display_str}_{count}.{ext}"
+            
+        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'evidence', case_id, filename)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         file.save(filepath)
         
         # Create Statement record
@@ -51,6 +73,17 @@ def upload_file():
             uploaded_by=current_user
         )
         db.session.add(statement)
+        
+        # Add to Evidence Locker automatically
+        from app.models.evidence_item import EvidenceItem
+        evidence = EvidenceItem(
+            case_id=case_id,
+            item_type="statement",
+            file_path=filepath,
+            uploaded_by=current_user,
+            note_text=f"Uploaded Bank Statement"
+        )
+        db.session.add(evidence)
         db.session.commit()
         
         try:
@@ -71,7 +104,9 @@ def upload_file():
                         "Description": str(t.get('description', '')),
                         "Credit": t.get('credit'),
                         "Debit": t.get('debit'),
-                        "Balance": t.get('balance')
+                        "Balance": t.get('balance'),
+                        "is_failed": t.get('is_failed', False),
+                        "failure_reason": t.get('failure_reason')
                     }
                 })
                 
@@ -89,6 +124,8 @@ def upload_file():
                 db_data = txn_data.copy()
                 if 'txn_id' in db_data:
                     db_data['id'] = db_data.pop('txn_id')
+                if 'description' in db_data and db_data['description']:
+                    db_data['description'] = str(db_data['description'])[:500]
                 txn = Transaction(**db_data)
                 db.session.add(txn)
                 
@@ -123,7 +160,22 @@ def upload_file():
                     beneficiaries_map[receiver].total_received += amt
                     beneficiaries_map[receiver].transaction_count += 1
                 
+            acc_info = extracted_data.get('account', {})
             statement.bank_name = bank_detected
+            statement.account_number = acc_info.get('account_number')
+            statement.account_holder = acc_info.get('account_holder_name')
+            
+            import datetime
+            def parse_iso_date(d_str):
+                if not d_str: return None
+                try:
+                    return datetime.date.fromisoformat(d_str.split('T')[0])
+                except Exception:
+                    return None
+                    
+            statement.statement_period_start = parse_iso_date(acc_info.get('statement_period_from'))
+            statement.statement_period_end = parse_iso_date(acc_info.get('statement_period_to'))
+
             statement.transaction_count = len(normalized_txns)
             statement.upload_status = 'completed'
             db.session.commit()
@@ -146,6 +198,7 @@ def upload_file():
             return jsonify({
                 "statement_id": statement.id,
                 "case_id": case_id,
+                "display_id": display_id,
                 "transactions_count": len(normalized_txns),
                 "bank_detected": bank_detected,
                 "status": "success"

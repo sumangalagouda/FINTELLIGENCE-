@@ -23,7 +23,8 @@ def create_app(config_name='default'):
     # celery.conf.update(app.config)
     
     # Import Models so they are registered with SQLAlchemy
-    from app import models
+    with app.app_context():
+        db.create_all()
     
     # Register Blueprints
     from app.routes.auth import auth_bp

@@ -17,7 +17,7 @@ INDIAN_HOLIDAYS = [
 def detect_high_risk_time(case_id: str):
     transactions = (
         Transaction.query
-        .filter_by(case_id=case_id)
+        .filter_by(case_id=case_id, is_failed=False)
         .order_by(Transaction.date)
         .all()
     )

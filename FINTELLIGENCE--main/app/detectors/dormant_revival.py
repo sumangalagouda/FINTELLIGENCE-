@@ -8,7 +8,7 @@ HIGH_DORMANCY_THRESHOLD_DAYS = 365
 def detect_dormant_revival(case_id: str):
     transactions = (
         Transaction.query
-        .filter_by(case_id=case_id)
+        .filter_by(case_id=case_id, is_failed=False)
         .order_by(Transaction.date)
         .all()
     )

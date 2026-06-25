@@ -15,7 +15,7 @@ from app.models.investigator_note import InvestigatorNote
 from app.models.verification import Verification
 from app.models.supervisor_approval import SupervisorApproval
 from app.intelligence.fir_readiness import calculate_fir_readiness
-from app.ai.groq_client import call_groq as query_groq
+from app.ai.ollama_client import call_ollama as query_groq
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/api/reports')
 
@@ -31,6 +31,14 @@ def add_watermark(canvas, doc):
 @reports_bp.route('/generate/<case_id>', methods=['GET'])
 @jwt_required()
 def generate_pdf_report(case_id):
+    from flask import current_app
+    from app.models.evidence_item import EvidenceItem
+    from app.extensions import db
+    from flask_jwt_extended import get_jwt_identity
+    import time
+    
+    current_user_id = get_jwt_identity()
+
     case = Case.query.get(case_id)
     if not case:
         return jsonify({"error": "Case not found"}), 404
@@ -128,13 +136,34 @@ def generate_pdf_report(case_id):
     else:
         story.append(Paragraph("No verification record found.", normal_style))
 
-    # Build PDF
     doc.build(story, onFirstPage=add_watermark, onLaterPages=add_watermark)
+    
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+    evidence_dir = os.path.join(upload_folder, 'evidence', case_id)
+    os.makedirs(evidence_dir, exist_ok=True)
+    
+    timestamp = int(time.time())
+    filename = f"report_{case_id}_{timestamp}.pdf"
+    pdf_path = os.path.join(evidence_dir, filename)
+    
+    with open(pdf_path, 'wb') as f:
+        f.write(buffer.getvalue())
+        
+    evidence = EvidenceItem(
+        case_id=case_id,
+        item_type="report",
+        file_path=pdf_path,
+        uploaded_by=current_user_id,
+        note_text="Automatically generated Case Summary Report"
+    )
+    db.session.add(evidence)
+    db.session.commit()
+    
     buffer.seek(0)
 
     return send_file(
         buffer,
         as_attachment=True,
-        download_name=f"FINTELLIGENCE_Report_{case_id}.pdf",
+        download_name=filename,
         mimetype='application/pdf'
     )

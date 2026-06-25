@@ -1,5 +1,5 @@
 import json
-from app.ai.groq_client import call_groq
+from app.ai.ollama_client import call_ollama
 from app.models.transaction import Transaction
 from app.detectors.evidence_confidence import calculate_evidence_confidence
 from app.ai.pattern_library import identify_patterns
@@ -10,7 +10,7 @@ def get_case_severity(case_id: str) -> dict:
     patterns = identify_patterns(case_id)
     
     # Transaction stats
-    txns = Transaction.query.filter_by(case_id=case_id).all()
+    txns = Transaction.query.filter_by(case_id=case_id, is_failed=False).all()
     flagged_txns = [t for t in txns if getattr(t, 'is_flagged', False)] # depends on how is_flagged is used
     
     # If is_flagged isn't reliably updated, just use total txns as a metric
@@ -37,7 +37,7 @@ def get_case_severity(case_id: str) -> dict:
     )
     
     try:
-        response_text = call_groq(system_prompt, user_prompt, max_tokens=1000)
+        response_text = call_ollama(system_prompt, user_prompt, max_tokens=1000)
     except Exception:
         return {
             "severity_score": evidence.get('overall_confidence', 0),

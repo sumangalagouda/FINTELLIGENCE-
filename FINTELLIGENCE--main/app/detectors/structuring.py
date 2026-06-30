@@ -1,109 +1,271 @@
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer, util
+from rapidfuzz import fuzz
 from app.models.transaction import Transaction
 
-# Load model globally (lazy loading inside the function is also fine, but global avoids reload per request)
-# Alternatively, load it inside the function to save memory if not frequently used.
-_model = None
 
-def get_similarity_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer('all-MiniLM-L6-v2')
-    return _model
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+STRUCTURING_MIN = 40000
+NEAR_THRESHOLD_MIN = 45000
+REGULATORY_THRESHOLD = 50000
+
+CLASSICAL_WINDOW_DAYS = 7
+MIN_CLASSICAL_TXNS = 2
+
+
+# ============================================================================
+# HELPERS
+# ============================================================================
+
+def narration_similarity(desc_a: str, desc_b: str) -> float:
+    """
+    Fast similarity for banking narrations.
+
+    SentenceTransformers are not ideal for UPI references and account IDs,
+    so token-based fuzzy matching is more appropriate.
+    """
+    if not desc_a or not desc_b:
+        return 0.0
+
+    return fuzz.token_sort_ratio(desc_a.upper(), desc_b.upper()) / 100.0
+
+
+# ============================================================================
+# STRUCTURING DETECTOR
+# ============================================================================
 
 def detect_structuring(case_id: str):
-    transactions = Transaction.query.filter_by(case_id=case_id, is_failed=False).order_by(Transaction.date).all()
+
+    transactions = (
+        Transaction.query
+        .filter_by(case_id=case_id, is_failed=False)
+        .order_by(Transaction.date)
+        .all()
+    )
+
     if not transactions:
         return []
 
-    df = pd.DataFrame([{
-        'txn_id': t.id,
-        'sender_account': t.sender_account,
-        'receiver_account': t.receiver_account,
-        'amount': t.amount,
-        'date': pd.to_datetime(t.date),
-        'description': t.description or ''
-    } for t in transactions if t.sender_account])
+    df = pd.DataFrame([
+        {
+            "txn_id": t.id,
+            "sender_account": t.sender_account,
+            "receiver_account": t.receiver_account,
+            "amount": abs(t.amount),
+            "date": pd.to_datetime(t.date),
+            "description": t.description or "",
+            "direction": getattr(t, "direction", None)
+        }
+        for t in transactions
+        if t.sender_account and t.amount
+    ])
 
     if df.empty:
         return []
 
-    # Filter transactions between 40k and 49,999
-    # Usually structuring is deposits/credits, but depending on context, it could be debits.
-    # We will look at absolute amount for structuring, assuming sending/receiving context is unified here.
-    sub_threshold = df[(df['amount'] >= 40000) & (df['amount'] < 50000)].copy()
-    
-    if sub_threshold.empty:
-        return []
+    # ------------------------------------------------------------------------
+    # OPTIONAL:
+    # Focus primarily on incoming money if direction exists.
+    # Remove this block if your schema doesn't support direction.
+    # ------------------------------------------------------------------------
+    if "direction" in df.columns and df["direction"].notna().any():
+        df = df[df["direction"] == "credit"]
 
-    sub_threshold = sub_threshold.sort_values(by=['sender_account', 'date'])
-    sub_threshold = sub_threshold.set_index('date')
+    if df.empty:
+        return []
 
     results = []
 
-    # Rolling 7-day window
-    for sender, group in sub_threshold.groupby('sender_account'):
-        # For each transaction, count how many within 7 days
-        for i, row in group.iterrows():
-            # i is date index
-            window_start = i
-            window_end = i + pd.Timedelta(days=7)
-            
-            window_txns = group[(group.index >= window_start) & (group.index <= window_end)]
-            
-            if len(window_txns) >= 2:
-                # Calculate scores
-                count = len(window_txns)
-                avg_amount = window_txns['amount'].mean()
-                threshold_proximity_pct = (avg_amount / 50000.0) * 100
-                
-                # Proximity score (higher is closer to 50k)
-                score = 50 + (threshold_proximity_pct - 80) * 2 # If 98%, gives 50 + 36 = 86
-                
-                # Frequency
-                score += (count - 2) * 10
-                
-                # Same beneficiary
-                unique_beneficiaries = window_txns['receiver_account'].nunique()
-                if unique_beneficiaries == 1 and window_txns['receiver_account'].iloc[0] is not None:
-                    score += 15
-                
-                # Description similarity
-                descriptions = window_txns['description'].tolist()
-                sim_score = 0.0
-                if len(descriptions) > 1 and any(descriptions):
-                    model = get_similarity_model()
-                    embeddings = model.encode(descriptions)
-                    # compute pairwise similarity
-                    cosine_scores = util.cos_sim(embeddings, embeddings)
-                    # Average similarity excluding self
-                    mask = ~np.eye(cosine_scores.shape[0], dtype=bool)
-                    sim_score = cosine_scores[mask].mean().item()
-                    
-                    if sim_score > 0.8:
-                        score += (sim_score * 20)
-                
-                score = min(100, score)
+    # ------------------------------------------------------------------------
+    # ONLY consider near-threshold transactions
+    # ------------------------------------------------------------------------
+    candidate_txns = df[
+        (df["amount"] >= STRUCTURING_MIN) &
+        (df["amount"] < REGULATORY_THRESHOLD)
+    ].copy()
 
-                # Avoid adding the same window repeatedly
-                # We can just add the first one and break, or aggregate
+    if candidate_txns.empty:
+        return []
+
+    candidate_txns = candidate_txns.sort_values(
+        ["sender_account", "date"]
+    )
+
+    processed_clusters = set()
+
+    # ========================================================================
+    # PER ACCOUNT ANALYSIS
+    # ========================================================================
+    for sender, group in candidate_txns.groupby("sender_account"):
+
+        group = group.set_index("date")
+
+        for current_date in group.index:
+
+            window_start = current_date
+            window_end = current_date + pd.Timedelta(
+                days=CLASSICAL_WINDOW_DAYS
+            )
+
+            cluster = group[
+                (group.index >= window_start) &
+                (group.index <= window_end)
+            ]
+
+            txn_ids = tuple(sorted(cluster["txn_id"].tolist()))
+
+            # Prevent duplicate alerts
+            if txn_ids in processed_clusters:
+                continue
+
+            processed_clusters.add(txn_ids)
+
+            count = len(cluster)
+            avg_amount = cluster["amount"].mean()
+
+            proximity_pct = (
+                avg_amount / REGULATORY_THRESHOLD
+            ) * 100
+
+            unique_receivers = (
+                cluster["receiver_account"].nunique()
+            )
+
+            # ================================================================
+            # CASE 1:
+            # CLASSICAL STRUCTURING
+            # ================================================================
+            if count >= MIN_CLASSICAL_TXNS:
+
+                score = 60
+
+                # More transactions = higher suspicion
+                score += min((count - 2) * 10, 20)
+
+                # Close to 50K threshold
+                score += min((proximity_pct - 80) * 0.8, 15)
+
+                # Same beneficiary repeatedly
+                if (
+                    unique_receivers == 1
+                    and cluster["receiver_account"].iloc[0]
+                ):
+                    score += 10
+
+                # Narration similarity
+                descriptions = cluster["description"].tolist()
+
+                sim_score = 0.0
+
+                if len(descriptions) > 1:
+
+                    similarities = []
+
+                    for i in range(len(descriptions)):
+                        for j in range(i + 1, len(descriptions)):
+
+                            similarities.append(
+                                narration_similarity(
+                                    descriptions[i],
+                                    descriptions[j]
+                                )
+                            )
+
+                    if similarities:
+
+                        sim_score = float(
+                            np.mean(similarities)
+                        )
+
+                        if sim_score > 0.8:
+                            score += 10
+
+                score = min(100, int(score))
+
                 results.append({
                     "detector": "Structuring",
                     "triggered": True,
-                    "score": int(score),
-                    "reason": f"{count} transactions between ₹40,000-₹49,999 within 7 days. Avg proximity to threshold: {threshold_proximity_pct:.1f}%. Description similarity: {sim_score*100:.0f}%",
-                    "severity": "high" if score >= 75 else "medium",
-                    "transactions_involved": window_txns['txn_id'].tolist(),
+                    "score": score,
+                    "severity": (
+                        "critical"
+                        if score >= 90
+                        else "high"
+                    ),
+                    "reason": (
+                        f"{count} near-threshold transactions "
+                        f"(₹40K–₹50K) detected within "
+                        f"{CLASSICAL_WINDOW_DAYS} days. "
+                        f"Average amount: ₹{avg_amount:,.2f}. "
+                        f"Possible smurfing/structuring behaviour."
+                    ),
+                    "transactions_involved":
+                        cluster["txn_id"].tolist(),
                     "metadata": {
-                        "transactions_in_window": count,
-                        "avg_amount": float(avg_amount),
-                        "threshold_proximity_pct": float(threshold_proximity_pct),
-                        "description_similarity": float(sim_score)
+                        "pattern_type":
+                            "classical_structuring",
+                        "transactions_in_window":
+                            count,
+                        "avg_amount":
+                            float(avg_amount),
+                        "threshold_proximity_pct":
+                            float(proximity_pct),
+                        "unique_receivers":
+                            int(unique_receivers),
+                        "description_similarity":
+                            float(sim_score)
                     }
                 })
-                
-                break # Just emit one alert per sender for the cluster to avoid duplicates, or could be refined.
+
+            # ================================================================
+            # CASE 2:
+            # SINGLE NEAR-THRESHOLD TRANSACTION
+            # ================================================================
+            elif count == 1:
+
+                txn = cluster.iloc[0]
+
+                if txn["amount"] >= NEAR_THRESHOLD_MIN:
+
+                    score = 55 + (
+                        (
+                            txn["amount"]
+                            - NEAR_THRESHOLD_MIN
+                        ) / 5000
+                    ) * 20
+
+                    score = min(75, int(score))
+
+                    results.append({
+                        "detector": "NearThresholdTransaction",
+                        "triggered": True,
+                        "score": score,
+                        "severity": "medium",
+                        "reason": (
+                            f"Single transaction of "
+                            f"₹{txn['amount']:,.2f} "
+                            f"was detected very close to the "
+                            f"₹50,000 reporting threshold. "
+                            f"This may indicate deliberate "
+                            f"threshold avoidance."
+                        ),
+                        "transactions_involved":
+                            [txn["txn_id"]],
+                        "metadata": {
+                            "pattern_type":
+                                "single_near_threshold",
+                            "amount":
+                                float(txn["amount"]),
+                            "threshold_proximity_pct":
+                                float(
+                                    (
+                                        txn["amount"]
+                                        / REGULATORY_THRESHOLD
+                                    ) * 100
+                                )
+                        }
+                    })
 
     return results

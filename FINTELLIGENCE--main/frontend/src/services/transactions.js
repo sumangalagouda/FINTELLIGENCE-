@@ -3,7 +3,7 @@ export const getStatementTransactions = (api, statementId, options = {}) => {
 
   const params = new URLSearchParams();
   if (options.page) params.set('page', options.page);
-  if (options.perPage) params.set('per_page', options.perPage);
+  params.set('per_page', options.perPage || 10000);
 
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return api(`/transactions/${statementId}${suffix}`);

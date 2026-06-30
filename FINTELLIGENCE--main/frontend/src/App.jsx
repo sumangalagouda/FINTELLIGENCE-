@@ -58,6 +58,9 @@ const detectorEndpoints = [
   ['High Risk Time', '/detect/high-risk-time'],
   ['Structuring / Smurfing', '/detect/structuring'],
   ['Circular Flow', '/detect/circular-flow'],
+  ['Pass Through', '/detect/pass-through'],
+  ['Transaction Velocity', '/detect/velocity'],
+  ['Cash Cycling', '/detect/cash-cycling'],
 ];
 
 export default function App() {
@@ -298,6 +301,7 @@ export default function App() {
 
         {activeView === 'dashboard' && (
           <DashboardPage
+            api={api}
             user={user}
             overview={overview}
             cases={filteredCases}
@@ -313,6 +317,7 @@ export default function App() {
         
         {activeView === 'sio-dashboard' && (
           <DashboardPage
+            api={api}
             user={user}
             overview={overview}
             cases={filteredCases}
@@ -407,8 +412,7 @@ export default function App() {
               )}
               {caseWorkspaceTab === 'transactions' && <TransactionsPage transactions={transactions} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} selectedCase={selectedCase} api={api} forceDetailView={true} />}
               {caseWorkspaceTab === 'fraud' && <FraudPage detectors={detectors} runDetectors={runDetectors} loading={loading} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} forceDetailView={true} />}
-              {caseWorkspaceTab === 'fund-flow' && <FundFlowView graph={graph} transactions={transactions} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} api={api} forceDetailView={true} />}
-              {caseWorkspaceTab === 'money-trail' && <MoneyTrailPage graph={graph} transactions={transactions} selectedCase={selectedCase} caseDetail={caseDetail} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} forceDetailView={true} />}
+              {caseWorkspaceTab === 'fund-flow' && <MoneyTrailPage api={api} graph={graph} transactions={transactions} selectedCase={selectedCase} caseDetail={caseDetail} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} forceDetailView={true} />}
               {caseWorkspaceTab === 'ai' && <AiPage api={api} cases={filteredCases} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} chat={chat} setChat={setChat} transactions={transactions} forceDetailView={true} />}
               {caseWorkspaceTab === 'reports' && <ReportsPage api={api} cases={filteredCases} selectedCaseId={selectedCaseId} selectedCase={selectedCase} setSelectedCaseId={setSelectedCaseId} forceDetailView={true} />}
               {caseWorkspaceTab === 'evidence' && <EvidencePage cases={filteredCases} evidence={evidence} selectedCase={selectedCase} api={api} setEvidence={setEvidence} selectedCaseId={selectedCaseId} setSelectedCaseId={setSelectedCaseId} forceDetailView={true} />}

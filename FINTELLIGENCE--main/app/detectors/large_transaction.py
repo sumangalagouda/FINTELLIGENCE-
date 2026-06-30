@@ -24,23 +24,22 @@ def detect_large_transaction(case_id: str):
             "sender_account": t.sender_account,
             "receiver_account": t.receiver_account,
             "amount": float(t.amount),
-            "date": pd.to_datetime(t.date)
+            "date": pd.to_datetime(t.date),
+            "type": t.type
         }
         for t in transactions
     ])
 
-    df = df.dropna(subset=["sender_account"])
-
     if df.empty:
         return []
 
-    df = df.sort_values(["sender_account", "date"])
+    df = df.sort_values(["type", "date"])
 
     # --------------------------------------------------
     # Historical rolling average (EXCLUDES current txn)
     # --------------------------------------------------
     df["rolling_avg"] = (
-        df.groupby("sender_account")["amount"]
+        df.groupby("type")["amount"]
         .transform(
             lambda x: (
                 x.shift(1)
@@ -54,7 +53,7 @@ def detect_large_transaction(case_id: str):
     # Account-wise z-score
     # --------------------------------------------------
     df["zscore"] = (
-        df.groupby("sender_account")["amount"]
+        df.groupby("type")["amount"]
         .transform(
             lambda x: pd.Series(
                 zscore(x, nan_policy="omit"),

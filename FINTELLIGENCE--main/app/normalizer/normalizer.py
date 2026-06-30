@@ -2,6 +2,26 @@ import uuid
 from dateutil import parser as date_parser
 
 
+def categorize_channel(narration: str) -> str:
+    narration = str(narration).upper()
+    
+    if 'CASH DEPOSIT' in narration:
+        return 'cash_deposit'
+    elif 'CASH WITHDRAWAL' in narration:
+        return 'cash_withdrawal'
+    elif 'CHQ' in narration or 'CHEQUE' in narration:
+        return 'cheque'
+    elif 'UPI' in narration:
+        return 'upi'
+    elif 'NEFT' in narration:
+        return 'neft'
+    elif 'RTGS' in narration:
+        return 'rtgs'
+    elif 'IMPS' in narration:
+        return 'imps'
+    else:
+        return 'other'
+
 def extract_accounts(description, txn_type=None):
     """
     Extract sender and receiver accounts from narration.
@@ -164,7 +184,8 @@ def process_and_normalize(raw_transactions, statement_id, case_id):
             "balance_after": balance_after,
             "raw_text": raw_txn.get("raw_text", ""),
             "is_failed": parsed.get("is_failed", False),
-            "failure_reason": parsed.get("failure_reason")
+            "failure_reason": parsed.get("failure_reason"),
+            "channel": categorize_channel(clean_desc)
         }
 
         normalized_txns.append(canonical_txn)

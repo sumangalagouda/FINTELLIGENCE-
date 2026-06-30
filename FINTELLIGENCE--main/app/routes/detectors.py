@@ -68,3 +68,36 @@ def evidence_confidence_endpoint():
         return jsonify({"error": "case_id is required"}), 400
     results = calculate_evidence_confidence(case_id)
     return jsonify(results)
+
+@detectors_bp.route('/pass-through', methods=['POST'])
+@jwt_required()
+def pass_through_endpoint():
+    from app.detectors.pass_through import detect_pass_through
+    data = request.get_json(silent=True) or {}
+    case_id = data.get('case_id')
+    if not case_id:
+        return jsonify({"error": "case_id is required"}), 400
+    results = detect_pass_through(case_id)
+    return jsonify(results)
+
+@detectors_bp.route('/velocity', methods=['POST'])
+@jwt_required()
+def velocity_endpoint():
+    from app.detectors.velocity import detect_velocity
+    data = request.get_json(silent=True) or {}
+    case_id = data.get('case_id')
+    if not case_id:
+        return jsonify({"error": "case_id is required"}), 400
+    results = detect_velocity(case_id)
+    return jsonify(results)
+
+@detectors_bp.route('/cash-cycling', methods=['POST'])
+@jwt_required()
+def cash_cycling_endpoint():
+    from app.detectors.cash_cycling import detect_cash_cycling
+    data = request.get_json(silent=True) or {}
+    case_id = data.get('case_id')
+    if not case_id:
+        return jsonify({"error": "case_id is required"}), 400
+    results = detect_cash_cycling(case_id)
+    return jsonify(results)

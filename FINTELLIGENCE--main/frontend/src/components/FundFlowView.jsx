@@ -11,6 +11,7 @@ export default function FundFlowView({
   cases,
   selectedCaseId,
   setSelectedCaseId,
+  onNodeClick
 }) {
   const [pageViewMode, setPageViewMode] = useState('list');
   const containerRef = useRef(null);
@@ -572,6 +573,11 @@ export default function FundFlowView({
                         setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
                       }}
                       onMouseLeave={() => setHoveredNode(null)}
+                      onClick={() => {
+                        if (typeof onNodeClick === 'function') {
+                          onNodeClick(node.id);
+                        }
+                      }}
                     >
                       {/* Radar Pulse Animation for High Risk Nodes */}
                       {isHighRisk && (

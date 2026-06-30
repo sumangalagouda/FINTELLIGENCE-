@@ -103,6 +103,16 @@ export default function Cases({
     }
   };
 
+  const caseTabs = [
+    { id: 'summary', label: 'Summary' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'fraud', label: 'Fraud Analysis' },
+    { id: 'fund-flow', label: 'Fund Flow' },
+    { id: 'ai', label: 'AI Investigator' },
+    { id: 'reports', label: 'Reports' },
+    { id: 'evidence', label: 'Evidence Locker' }
+  ];
+
   const changeStatus = async (newStatus) => {
     if (!selectedCaseId) return;
     

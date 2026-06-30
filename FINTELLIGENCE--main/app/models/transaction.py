@@ -21,6 +21,7 @@ class Transaction(db.Model):
     is_flagged = db.Column(db.Boolean, default=False)
     risk_score = db.Column(db.Float, default=0.0)
     risk_level = db.Column(db.String(50), default='low') # low/medium/high/critical
+    channel = db.Column(db.String(50), nullable=True)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

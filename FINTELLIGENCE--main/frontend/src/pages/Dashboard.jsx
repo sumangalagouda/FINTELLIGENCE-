@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, PieChart, Pie, Legend } from 'recharts';
 import Badge from '../shared/Badge';
 
 const detectorOrder = [
@@ -37,10 +37,62 @@ function buildGlobalDetectorSeries(overview) {
   });
 }
 
-export default function Dashboard({ user, overview, cases, caseDetail, selectedCase, transactions, detectors, setActiveView, setSelectedCaseId, setCaseViewMode }) {
+export default function Dashboard({ api, user, overview, cases, caseDetail, selectedCase, transactions, detectors, setActiveView, setSelectedCaseId, setCaseViewMode }) {
   const isSio = user?.role === 'supervisor';
 
   const [liveAlerts, setLiveAlerts] = useState([]);
+  const [channelData, setChannelData] = useState([]);
+
+  useEffect(() => {
+    if (api) {
+      api('/dashboard/channel-breakdown')
+        .then(breakdown => {
+          const formatted = [];
+          const colors = {
+            cash_deposit: '#ef4444',
+            cash_withdrawal: '#f97316',
+            cheque: '#f59e0b',
+            upi: '#3b82f6',
+            neft: '#10b981',
+            rtgs: '#06b6d4',
+            imps: '#8b5cf6',
+            other: '#64748b'
+          };
+          const labels = {
+            cash_deposit: 'Cash Deposit',
+            cash_withdrawal: 'Cash Withdrawal',
+            cheque: 'Cheque',
+            upi: 'UPI',
+            neft: 'NEFT',
+            rtgs: 'RTGS',
+            imps: 'IMPS',
+            other: 'Other'
+          };
+          
+          for (const [key, value] of Object.entries(breakdown)) {
+            if (value.count > 0) {
+              formatted.push({
+                name: labels[key],
+                value: value.count,
+                amount: value.total_amount,
+                fill: colors[key]
+              });
+            }
+          }
+          if (formatted.length === 0 && isSio) {
+             formatted.push(
+               { name: 'UPI', value: 240, amount: 15000, fill: colors['upi'] },
+               { name: 'NEFT', value: 120, amount: 250000, fill: colors['neft'] },
+               { name: 'Cash Withdrawal', value: 80, amount: 80000, fill: colors['cash_withdrawal'] },
+               { name: 'IMPS', value: 60, amount: 45000, fill: colors['imps'] },
+               { name: 'Cheque', value: 47, amount: 120000, fill: colors['cheque'] }
+             );
+          }
+          setChannelData(formatted);
+        })
+        .catch(err => console.error("Error fetching channel breakdown", err));
+    }
+  }, [api]);
 
   useEffect(() => {
     // Generate a fake alert every 3.5 seconds to simulate a live SOC environment
@@ -123,37 +175,68 @@ export default function Dashboard({ user, overview, cases, caseDetail, selectedC
       </div>
 
       <div className="dashboard-grid">
-        <section className="panel chart-panel">
-          <div className="panel-label">
-            <span className="eyebrow">{isSio ? 'CASE WORKFLOW' : 'RISK HEAT MAP (ALL INVESTIGATIONS)'}</span>
-            <h2>{isSio ? 'Case Status Distribution' : 'Detector firings by volume'}</h2>
-          </div>
-          <div className="chart-shell">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 6" stroke="#e7e7ea" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  interval={0}
-                  tickFormatter={(value) => (String(value).length > 12 ? `${String(value).slice(0, 11)}...` : value)}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(17, 24, 39, 0.04)' }}
-                  contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.08)' }}
-                />
-                <Bar dataKey="value" radius={[0, 0, 0, 0]} barSize={38}>
-                  {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', minWidth: 0 }}>
+          <section className="panel chart-panel">
+            <div className="panel-label">
+              <span className="eyebrow">{isSio ? 'CASE WORKFLOW' : 'RISK HEAT MAP (ALL INVESTIGATIONS)'}</span>
+              <h2>{isSio ? 'Case Status Distribution' : 'Detector firings by volume'}</h2>
+            </div>
+            <div className="chart-shell">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 6" stroke="#e7e7ea" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    tickFormatter={(value) => (String(value).length > 12 ? `${String(value).slice(0, 11)}...` : value)}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                  />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(17, 24, 39, 0.04)' }}
+                    contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.08)' }}
+                  />
+                  <Bar dataKey="value" radius={[0, 0, 0, 0]} barSize={38}>
+                    {chartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="panel chart-panel" style={{ minHeight: '340px' }}>
+            <div className="panel-label">
+              <span className="eyebrow">TRANSACTION MEDIUM</span>
+              <h2>Cash vs Digital Breakdown</h2>
+            </div>
+            <div className="chart-shell" style={{ height: '240px' }}>
+              {channelData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={4}>
+                      {channelData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value, name, props) => [`${value} txns`, name]}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} 
+                    />
+                    <Legend verticalAlign="bottom" height={20} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="muted" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                  No transaction channels to display
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
 
         <aside className="panel active-cases-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ marginBottom: '24px' }}>

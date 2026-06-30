@@ -1,17 +1,42 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import FundFlowView from '../components/FundFlowView';
+import FifoFundAttribution from '../components/FifoFundAttribution';
 import CaseList from '../components/CaseList';
 
 const formatDate = (value) => {
   if (!value) return '-';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : date.toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 };
 
 const formatMoney = (value) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value || 0));
 
-export default function MoneyTrail({ graph, transactions, selectedCase, caseDetail, cases, selectedCaseId, setSelectedCaseId }) {
+export default function MoneyTrail({ api, graph, transactions, selectedCase, caseDetail, cases, selectedCaseId, setSelectedCaseId }) {
   const [pageViewMode, setPageViewMode] = useState('list');
+  const [fifoAccountId, setFifoAccountId] = useState(null);
+
+  const uniqueAccounts = useMemo(() => {
+    const accounts = new Set();
+    transactions.forEach(txn => {
+      if (txn.sender_account) accounts.add(txn.sender_account);
+      if (txn.receiver_account) accounts.add(txn.receiver_account);
+    });
+    return Array.from(accounts).sort();
+  }, [transactions]);
+
+  useEffect(() => {
+    // Default to main account holder
+    if (uniqueAccounts.length > 0 && !fifoAccountId) {
+      const mainAccount = caseDetail?.statements?.[0]?.account_holder || caseDetail?.statements?.[0]?.account_number;
+      if (mainAccount && uniqueAccounts.includes(mainAccount)) {
+        setFifoAccountId(mainAccount);
+      } else {
+        setFifoAccountId(uniqueAccounts[0]);
+      }
+    }
+  }, [uniqueAccounts, caseDetail, fifoAccountId]);
+
   const summary = useMemo(() => {
     const dates = transactions
       .map((txn) => txn.date)
@@ -61,8 +86,8 @@ export default function MoneyTrail({ graph, transactions, selectedCase, caseDeta
   return (
     <section className="stack money-trail-page">
       <div className="dashboard-hero hoste-style">
-        <p className="eyebrow">TRAIL / TRACEABLE HISTORY</p>
-        <h1>Money Trail</h1>
+        <p className="eyebrow">TRACEABLE HISTORY</p>
+        <h1>Fund Flow & Tracking</h1>
         <p className="subcopy">
           Traceable history of money movement for investigation, audit, AML, fraud detection, and compliance review.
         </p>
@@ -88,42 +113,6 @@ export default function MoneyTrail({ graph, transactions, selectedCase, caseDeta
 
       <section className="panel money-section">
         <div className="panel-label">
-          <span className="eyebrow">TRAIL OVERVIEW</span>
-          <h2>What the trail means</h2>
-        </div>
-        <p className="money-copy">
-          Money trail refers to the complete traceable history of money movement. It captures fund flows and supporting metadata
-          such as transaction dates, amounts, account owners, intermediaries, and suspicious patterns.
-        </p>
-      </section>
-
-      <section className="panel money-section">
-        <div className="panel-label">
-          <span className="eyebrow">TRAIL METADATA</span>
-          <h2>Who, when, how much, and through whom</h2>
-        </div>
-        <div className="money-grid">
-          <div className="money-card">
-            <span>Account owner</span>
-            <strong>{summary.accountOwner}</strong>
-          </div>
-          <div className="money-card">
-            <span>Statement</span>
-            <strong>{summary.statementName}</strong>
-          </div>
-          <div className="money-card">
-            <span>Suspicious transfers</span>
-            <strong>{summary.flaggedCount}</strong>
-          </div>
-          <div className="money-card">
-            <span>Unique parties</span>
-            <strong>{summary.uniquePartiesCount}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel money-section">
-        <div className="panel-label">
           <span className="eyebrow">SUSPICIOUS PATTERNS</span>
           <h2>Signals to review</h2>
         </div>
@@ -139,54 +128,27 @@ export default function MoneyTrail({ graph, transactions, selectedCase, caseDeta
 
       <section className="panel money-section">
         <div className="panel-label">
-          <span className="eyebrow">RECENT TRANSFERS</span>
-          <h2>Transaction trail</h2>
-        </div>
-        <div className="table-shell">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Sender</th>
-                <th>Receiver</th>
-                <th>Risk</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTransactions.map((txn) => (
-                <tr key={txn.id}>
-                  <td>{formatDate(txn.date)}</td>
-                  <td>{formatMoney(txn.amount)}</td>
-                  <td>{txn.sender_account || '-'}</td>
-                  <td>{txn.receiver_account || '-'}</td>
-                  <td>{txn.risk_level || 'low'}</td>
-                </tr>
-              ))}
-              {recentTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="empty-table">
-                    No transactions available for the selected case.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="panel money-section">
-        <div className="panel-label">
           <span className="eyebrow">VISUAL TRAIL</span>
           <h2>Fund flow map</h2>
         </div>
         <FundFlowView
+          api={api}
           graph={graph}
           transactions={transactions}
-          title="Money Trail"
-          subtitle="Trace money movement, intermediaries, and suspicious routes through the selected case."
-          eyebrow="TRAIL"
+          selectedCaseId={selectedCaseId}
+          onNodeClick={(nodeId) => setFifoAccountId(nodeId)}
         />
+        
+        {/* FIFO Tracking Section */}
+        {uniqueAccounts.length > 0 && (
+          <FifoFundAttribution
+            api={api}
+            caseId={selectedCaseId}
+            uniqueAccounts={uniqueAccounts}
+            selectedAccountId={fifoAccountId}
+            onAccountSelect={setFifoAccountId}
+          />
+        )}
       </section>
     </section>
   );

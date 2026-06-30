@@ -138,3 +138,32 @@ def run_silent_endpoint():
         
     results = run_silent_analysis(statement_id, case_id)
     return jsonify({"status": "success", "detectors_run": len(results)})
+
+@intelligence_bp.route('/fifo-trace', methods=['POST'])
+@jwt_required()
+def fifo_trace_endpoint():
+    from app.models.transaction import Transaction
+    from app.intelligence.fifo_tracker import fifo_trace_funds
+    
+    data = request.get_json(silent=True) or {}
+    account_id = data.get('account_id')
+    case_id = data.get('case_id')
+    
+    if not account_id or not case_id:
+        return jsonify({"error": "account_id and case_id are required"}), 400
+        
+    # Get all transactions for this case involving this account
+    transactions = Transaction.query.filter(
+        Transaction.case_id == case_id,
+        db.or_(
+            Transaction.sender_account == account_id,
+            Transaction.receiver_account == account_id
+        )
+    ).all()
+    
+    traced_outflows = fifo_trace_funds(account_id, transactions)
+    
+    return jsonify({
+        "account_id": account_id,
+        "traced_outflows": traced_outflows
+    })

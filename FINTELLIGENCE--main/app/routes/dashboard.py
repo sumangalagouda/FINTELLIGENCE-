@@ -11,6 +11,42 @@ from app.models.detection_result import DetectionResult
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
 
+@dashboard_bp.route('/debug', methods=['GET'])
+def debug():
+    from flask import current_app
+    from app.models.transaction import Transaction
+    return jsonify({
+        "uri": current_app.config['SQLALCHEMY_DATABASE_URI'],
+        "count": Transaction.query.count()
+    })
+
+
+@dashboard_bp.route('/channel-breakdown', methods=['GET'])
+@jwt_required()
+def channel_breakdown():
+    case_id = request.args.get('case_id')
+    user_id = get_jwt_identity()
+
+    if case_id:
+        transactions = Transaction.query.filter_by(case_id=case_id).all()
+    else:
+        visible_cases_q = Case.query.filter((Case.created_by == user_id) | (Case.assigned_to == user_id))
+        visible_case_ids = [c.id for c in visible_cases_q.with_entities(Case.id).all()]
+        if not visible_case_ids:
+            transactions = []
+        else:
+            transactions = Transaction.query.filter(Transaction.case_id.in_(visible_case_ids)).all()
+
+    breakdown = {}
+    for channel in ['cash_deposit', 'cash_withdrawal', 'cheque', 'upi', 'neft', 'rtgs', 'imps', 'other']:
+        matching = [t for t in transactions if t.channel == channel]
+        breakdown[channel] = {
+            'count': len(matching),
+            'total_amount': sum(t.amount for t in matching)
+        }
+    
+    return jsonify(breakdown), 200
+
 @dashboard_bp.route('/overview', methods=['GET'])
 @jwt_required()
 def overview():

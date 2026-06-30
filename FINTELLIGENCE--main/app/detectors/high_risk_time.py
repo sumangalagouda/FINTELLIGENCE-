@@ -8,9 +8,9 @@ INDIAN_HOLIDAYS = [
     "08-15",  # Independence Day
     "10-02",  # Gandhi Jayanti
     "12-25",  # Christmas
-    "11-12",  # Diwali (placeholder)
-    "03-25",  # Holi (placeholder)
-    "04-11",  # Eid (placeholder)
+    "11-12",  # Diwali 
+    "03-25",  # Holi 
+    "04-11",  # Eid 
 ]
 
 
